@@ -1,1 +1,75 @@
-text here
+---
+title: "Sta 523 - Midterm 1 - Spring 2016"
+output: rmarkdown::html_document
+---
+
+<br/><br/>
+
+### Rules
+
+Be sure to carefully read and understand all of the rules for this exam contained in the `README.md` file. If you have any questions please ask me or one of the TAs.
+
+### Data
+
+For this assignment you will be working with a data from the 2015 Formula 1 season. The data was downloaded from ergast.com in the form of a single large JSON file which contains information on the results of all 19 races from the 2015 season. Your repo should contain both a prettified version of the original json file (`f1.json`) as well as an Rdata binary file (`f1.Rdata`) which can be read in using
+
+```{r}
+load(file="f1.Rdata")
+```
+
+The data is structured as a list of lists of lists of lists and so on, it is up to you to look at the data and figure out how it is structured and how best to get at the information you want. There is no need to create a tidy data frame of the entire data set, you are free to manipulate and encode the data in anyway you see fit.
+
+<br/>
+
+
+### Task 1 - 10 pts
+
+Briefly describe the structure of the `f1` object, in particular you should address what information is contained in each level of the list of lists as well as comment on any interesting or unusual features of these data.
+
+```{r describingTheStructure}
+#str(f1) ... Nope
+#head(f1, n = 1)
+head(f1$MRData , n = 1)
+head(f1$MRData , n = 6)
+head(f1$MRData$RaceTable , n = 1)
+head(f1$MRData$RaceTable$Races[[1]] , n = 1)
+head(f1$MRData$RaceTable$Races[[1]]$Results[[1]] , n = 1)
+head(f1$MRData$RaceTable$Races[[1]]$Results[[2]] , n = 1)
+```
+
+Via repeated application of the 'head()' command, we have deduced the structure of the list to be:  
+
+Level 1: The object 'f1' is a huge list whose first level is actually the list 'MRData.' This contains a few pieces of metadata, such as url's where one may find the data file. 
+
+Level 2: Within 'MRData, we have the list 'RaceTable.' This contains just the information about the season (2015) and then a list called 'Races.'  
+
+Level 3: Within 'Races' we entries for each 'round,' including the circuit location and information. For each round, we have a list of 'Results.'  
+
+Level 4: With the 'Results' list we have sublists for each car/drive number. Within each sublist is information about the drive as well as their car, time, and race position at the finish.  
+
+Level 5: The last level is the driver information contained in the sublists of 'Results.' These are not labeled and instead appear in the order or finishing position for the race.
+
+### Task 2 - 30 pts
+
+Using these data construct a table showing the World Drivers' Championship standings for this F1 season. This table should resemble the results available on [Wikipedia](https://en.wikipedia.org/wiki/2015_Formula_One_season#World_Drivers.27_Championship_standings). Your data frame should also have the same 21 columns: Driver name, finishing position for all 19 races, and their overall points total for the season. Failure to finish for any reason (did not start, did not finish, disqualified, etc.) should be coded as an `NA`. Race finishes and points total should all have an integer type. Your data frame should be sorted by points total, but you do not need to include any additional logic to handle ties.
+
+```{r}
+
+```
+
+
+### Task 3 - 30 pts
+
+Using these data construct a table showing the World Constructors' Championship standings for this F1 season. Your data frame should have 10 rows, one for each team/constructor, and 21 columns: team name, 19 columns that contain the points earned for each race, and team overall points total. Note that a team can have multiple drivers, so the reported points should be to total of all points scored for that race. It would be a good idea to compare your computed points total to those given in the table [here](https://en.wikipedia.org/wiki/2015_Formula_One_season#World_Constructors.27_Championship_standings).
+
+```{r}
+
+```
+
+### Task 4 - 30 pts
+
+Using the data frame created in task 3, construct a visualization comparing the 10 teams that shows their *cumulative* points earned throughout the 2015 season. This plot should have cumulative points on the y-axis and race on the x-axis with team/constructor identified by color or some other aesthetic. 
+
+```{r}
+
+```
