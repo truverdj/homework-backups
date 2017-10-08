@@ -1,0 +1,120 @@
+---
+title: "Homework 3 - Part 2"
+date: "Due: Oct 9th by 11:59 pm"
+output: 
+  html_document: 
+    theme: cerulean
+---
+
+<br/>
+
+Each year since 2005, the US Census Bureau surveys about 3.5 million households with The [American Community Survey](https://www.census.gov/programs-surveys/acs/) (ACS). Data collected from the ACS have been crucial in government and policy decisions, helping to determine the allocation of more than $400 billion in federal and state funds each year. For example, funds for the Adult Education and Family Literacy Act are distributed to states taking into consideration data from the ACS on number of adults 16 and over without a high school diploma. This act is the primary source of federal funding for adults with low basic skills seeking further education or English language services, and Department of Education uses ACS data to ensure the efficient distribute funds.
+
+The ACS received a surge of media attention in Spring 2012 when the House of Representatives voted to eliminate the survey.  Daniel Webster, a first-term Republican congressman from Florida, sponsored the legislation citing the following reasons:  
+
+- "This is a program that intrudes on people's lives, just like the Environmental Protection Agency or the bank regulators" 
+- "We're spending \$70 per person to fill this out. That's just not cost effective"
+- "in the end this is not a scientific survey. It's a random survey."
+
+In this assignment you will create "useful" visualizations using data from the ACS.
+
+
+```{r include=F}
+library(openintro)
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+library(openintro)
+data(acs12)
+acs12 = tbl_df(acs12)
+incAgeEtc = acs12 %>% 
+  mutate(edu =  recode(edu, "hs or lower" = 0, "college" = 1, "grad" = 2)) %>%
+  select(income, age, edu, hrs_work) 
+# too many NA entries: hrs_work, time_to_work 
+# full data on: race, age, citizen, married, disability, birth_qrtr
+# income appears to be household income because income is on average 2x for married
+```
+
+```{r, include=F}
+incomeHrs.lm = lm(income ~ hrs_work, data = acs12)
+incomeEdu.lm = lm(income ~ edu, data = acs12)
+incEduHrs.lm = lm(income ~ hrs_work + edu, data = acs12)
+# summary(incomeHrs.lm)
+```
+
+
+#### 1. Data properties
+
+<i>As a team, browse the data and select *three* variables that you think are interesting and that you think may have an interesting relationship. 
+
+For each of the variables you selected answer the following question: What are some of the properties of these variables that will be relevant (useful? problematic?) for data visualization? You are welcomed to include univariate visualizations to your answer, but you don't have to.</i>
+
+<!-- Write up here -->
+We have chosen to examine the variables 'income,' 'age,' and 'hrs_work' graphically. The hours worked per week data has many missing values, so that will limit how many data points we can display. Fortunately, there are still 959 data points we can display. Income is our idea of a response variable here to age and weekly hours, a common enough relationship to explore. We also decided to look at weekly hours as a fucntion of age. 
+
+<br/>
+
+#### 2. Plots
+
+Select and design two different plots that visualize the relationship between these three variables. Each plot should have a different "purpose" that guides your choices and justifies the differences between the plots.
+
+
+```{r plot1}
+incAge = incAgeEtc %>% 
+  filter(!is.na(age), !is.na(income))
+ggplot(data = incAge, aes(x = age, y = income)) +
+  theme_bw() + 
+  geom_point(aes(x = age, y = income)) + 
+  geom_smooth(method = "lm")
+# we see here many people have a zero income 
+incAge.non0 = incAge %>%
+  filter(income != 0)
+ggplot(data = incAge.non0, aes(x = age, y = income)) +
+  theme_bw() +
+  geom_point(aes(x = age, y = income)) + 
+  geom_smooth(method = "lm")
+```
+
+```{r plot2}
+```
+
+
+<br/>
+
+#### 3. Plot properties
+
+What two plot types have you selected? What are some of the properties of these plots, and how do those properties match with your variables of interest?
+
+<!-- Write up here -->
+
+
+<br/>
+
+#### 4. Tasks
+
+<i>Think of who the target audience might be for your plots. What task(s) should users of each plot be able to undertake? Why are these tasks important for these variables?</i>
+
+<!-- Write up here -->
+
+<br/>
+
+#### 5. Design context
+
+<i>Describe how the design choices you made help the users accomplish the intended task(s).</i>
+
+<!-- Write up here -->
+
+<br/>
+
+#### 6. User skills
+
+<i>What type of audience did you intend the plots for? What types of skills does this audience bring to the understanding of your plots? What elements of your plots might be difficult for the audience to understand, and how do you justify the choices you have made about those elements?</i>
+
+<!-- Write up here -->
+```{r}
+```
+
+<br/>
