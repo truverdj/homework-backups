@@ -89,7 +89,7 @@ Here, we see would could be a log-like relationship between 'Expend' and 'Apps' 
 <!--
 2.  Build a linear regression model to predict `Apps` from the other predictors using the training data.  Present model summaries and diagnostic plots.   Based on diagnostic plots  using residuals,  comment on the  adequacy of your model.
 --->
-```{r Model2}
+```{r Model1st}
 College.train = College.train %>%
   mutate(Elite = recode(Elite, "Yes" = 1, "No" = 0)) %>%
   mutate(Private = recode(Private, "Yes" = 1, "No" = 0))
@@ -97,7 +97,7 @@ apps.lm2 = lm(data = College.train, Apps ~ . - college)
 summary(apps.lm2)
 ```
 
-```{r Model2Plots}
+```{r Model1stPlots}
 {
   par(mfrow = c(2,2))
   plot(apps.lm2)
@@ -110,13 +110,93 @@ We do not see any troublesome points from a look at Cook's Distance. We do notic
 3. Generate 1000 replicate data sets using the coefficients from the model you fit above.  Using RMSE as a statistic, $\sqrt{\sum_i(y^{\text{rep}} - \hat{y}_i^{\text{rep}})^2/n }$, how does the RMSE from the model based on the training data compare to RMSE's based on the replicated data.  What does this suggest about model adequacy?   Provide a histogram of the RMSE's with a line showing the location of the observed RMSE and compute a p-value.  Hint:  write a function to calculate RMSE.
 --->
 
+```{r predictiveChecks1}
+rmse = function(y, ypred){
+       rmse = sqrt(mean((y - ypred)^2))
+       return(rmse)
+}
+set.seed(1)
+nsim = 1000
+n = nrow(College.train)
+appsModel = model.matrix(apps.lm2)
+sim.apps.lm2 = sim(apps.lm2, nsim)
+rmseList = rep(NA, nsim)
+rmseTrain = rmse(College.train$Apps, apps.lm2$fitted.values)
+for (i in 1:nsim){
+  ypred_i = appsModel %*% sim.apps.lm2@coef[i,]
+  rmseList[i] = rmse(College.train$Apps, ypred_i)
+}
+ggplot(data = data.frame(rmseList), aes(x = rmseList)) +
+  geom_histogram(color = "gray50", fill = "gray75") + 
+  geom_vline(xintercept = rmseTrain, color = "red") +
+  geom_text(aes(x = rmseTrain, y = 50, 
+                label = "model RMSE \n highly unlikely \n p-value near 0 \n model inadequate"),
+            hjust = 0.2) +
+  theme_bw()
+```
+
+<!--
 4. Build a second model, considering transformations of the response and predictors, possible interactions, etc with the goal of trying to achieve  a model where assumptions for linear regression are satisfied, providing justification for your choices.
 Comment on  how well the assumptions are met and and issues that diagnostic plots may reveal.
+--->
 
+The first things first, we're going to do is remove 'Books' and 'PhD' as predictors. They are statistically insignificant and a positive coefficient for the cost of books makes no sense. Additionally, the maximum value for in the data for 'PhD', the percent of PhD faculty, is 103. A negative coefficient on 'perc.alumni,' the percent of alumni who donate seems a bit strange; perhaps smaller schools require more donations. We leave it in for now.  
+
+We will log transform 'Expend' since it has a wide range (3365 to 56233), and our original scatterplot showed a possible log-like pattern with 'Apps.' Likewise, as we mentioned before, we will try a log trnasform on 'P.Undergrad.' Following the intuitive rule that we should explore interaction for large magnitude coefficients, we will explore the interaction of 'Private' with 'Elite' and 'Grad.Rate' with 'Elite.'
+
+```{r model2nd}
+apps.lm4 = lm(data = College.train,
+              Apps ~ Private + Top10perc + Top25perc + F.Undergrad + log(P.Undergrad) +
+                Room.Board + Outstate + Terminal + S.F.Ratio + perc.alumni + log(Expend) +
+                Grad.Rate + Elite + Private*Elite + Grad.Rate*Elite)
+{
+  par(mfrow = c(2,2))
+  plot(apps.lm4)
+}
+```
+
+Oh look, everything is still horrible. Most notably, the residuals clearly do not have constant variance. We have managed to reduce leverage values, as was our aim with the log transforms. 
+
+```{r}
+apps.lm4 = lm(data = College.train,
+              Apps^(1/3) ~ Private + Top10perc + Top25perc + F.Undergrad + log(P.Undergrad) +
+                Room.Board + Outstate + Terminal + S.F.Ratio + perc.alumni + log(Expend) +
+                Grad.Rate + Elite + Private*Elite + Grad.Rate*Elite)
+{
+  par(mfrow = c(2,2))
+  plot(apps.lm4)
+}
+```
+
+Trying a few of our favorite power transforms on the response, specifically $\lambda \in \{-1,-1/2,-1/3,0,1/3,1/2,1\} $, we see that 1/2 and 1/3 make decent improvements on the residual variability problem, but they do little to improve the strange non-linearity we see in the residuals. 
+
+<!--
 5.  Repeat the predictive checks described in problem 3, but using your model from problem 4.  If you transform the response, you will need to back transform  data to the original units in order to compute the RMSE in the original units.  Does this suggest that the model is adequate?  Do the two graphs provide information about which model is better?
+--->
 
+```{r predictiveChecks2}
+set.seed(1)
+nsim = 1000
+appsModel2 = model.matrix(apps.lm4)
+sim.apps.lm4 = sim(apps.lm4, nsim)
+rmseList2 = rep(NA, nsim)
+rmseTrain2 = rmse(College.train$Apps, (apps.lm4$fitted.values)^3)
+for (i in 1:nsim){
+  ypred_i = (appsModel %*% sim.apps.lm2@coef[i,])^3
+  rmseList2[i] = rmse(College.train$Apps, ypred_i)
+}
+ggplot(data = data.frame(rmseList2), aes(x = rmseList2)) +
+  geom_histogram(color = "gray50", fill = "gray75") + 
+  geom_vline(xintercept = rmseTrain2, color = "red") +
+  theme_bw()
+```
+
+That actually looks much more acceptable than the original model. While we cannot say this this second model is adequate, we can say it looks much better than the original. 
+
+<!---
 6. Use your two fitted models to predict the number of applications for the testing data, `College.test`.  Plot the predicted residuals $y_i - \hat{y}_i$  versus the predictions.  Are there any cases where the model does a poor job of predicting?  Compute the RMSE using the test data
 where now RMSE = $\sqrt{\sum_{i = 1}^{n.test}(y_i - \hat{y}_i)^2/n.test}$ where the sum is over the test data.  Which model is better for the out of sample prediction?
+--->
 
 7.  As the number of applications is a count variable, a Poisson regression model is a natural alternative for modelling this data.   Build a Poisson model using  main effects and possible interactions/transformations.    Comment on the model adequacy based on diagnostic plots and other summaries. Is there evidence that there is lack of fit?
 
