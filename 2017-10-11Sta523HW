@@ -64,32 +64,97 @@ Select and design two different plots that visualize the relationship between th
 
 ```{r plot1}
 incAge = incAgeEtc %>% 
-  filter(!is.na(age), !is.na(income))
-ggplot(data = incAge, aes(x = age, y = income)) +
-  theme_bw() + 
-  geom_point(aes(x = age, y = income)) + 
-  geom_smooth(method = "lm")
+  filter(!is.na(age), !is.na(income)) 
+# ggplot(data = incAge, aes(x = age, y = income)) +
+#   theme_bw() + 
+#   geom_point(aes(x = age, y = income)) + 
+#   geom_smooth(method = "lm")
 # we see here many people have a zero income 
 incAge.non0 = incAge %>%
   filter(income != 0)
+incQuants = quantile(incAge.non0$income, c(0.25, 0.75, 0.99))
+# the method for quantile division came from: 
+# https://stackoverflow.com/questions/18473382/color-code-points-based-on-percentile-in-ggplot
+incAge = incAge %>%
+  mutate(stratum = ifelse(income < incQuants[1], 0, 
+                          ifelse(income < incQuants[2], 1, 
+                                 ifelse(income < incQuants[3], 2, 3))))
+# end borrowed method
+incAge.non0 = incAge.non0 %>%
+  mutate(stratum = ifelse(income < incQuants[1], 0, 
+                          ifelse(income < incQuants[2], 1, 
+                                 ifelse(income < incQuants[3], 2, 3))))
+stratum.df = data.frame(incQuants, max(incAge.non0$age))
+v = 3
+h = 3
 ggplot(data = incAge.non0, aes(x = age, y = income)) +
   theme_bw() +
-  geom_point(aes(x = age, y = income)) + 
-  geom_smooth(method = "lm")
+  geom_point(aes(x = age, y = income, color = factor(stratum), pch = factor(stratum))) + 
+  scale_color_manual(values = c("black", "gray25", "gray50", "black"),
+                     labels = c("0-25%", "25-75%", "75-99%", "99-100%")) +
+  # scale_shape_manual(labels = c("0-25%", "25-75%", "75-99%", "99-100%")) + 
+  geom_hline(yintercept = incQuants[1]) +
+  geom_hline(yintercept = incQuants[2], linetype = 2, color = "gray25") +
+  geom_hline(color = "gray50", linetype = 3, yintercept = incQuants[3]) + 
+  geom_text(data = stratum.df, aes(x = max.incAge.non0.age., y = incQuants,
+                                   label = c("25% quantile", "75% quantile", "99% quantile"),
+                                   vjust = -0.5, hjust = .75, alpha = 0.5)) + 
+  theme(legend.position = "none") + 
+  ggtitle("Income Plotted against Age for People with Non-Zero Income", 
+          subtitle = "Highest pay occurs mostly in middle age, 30-65")
+  
 ```
 
 ```{r plot2}
+
+ageHrs = incAgeEtc %>%
+  select(income, age, hrs_work) %>%
+  filter(!is.na(age), !is.na(hrs_work)) %>%
+  group_by(age) %>%
+  mutate(avgHrs = mean(hrs_work)) %>%
+  ungroup()
+
+ageHrs.inc = ageHrs %>%
+  filter(!is.na(income)) %>%
+  mutate(ageRange = ifelse(age<= 25, 0,
+                           ifelse(age <= 40, 1,
+                                  ifelse(age <= 55, 2, 
+                                         ifelse(age <= 65, 3, 4)))) ) %>%
+  group_by(ageRange) %>%
+  mutate(avgInc = mean(income)) %>%
+  ungroup() %>%
+  transmute(ageRange = ageRange, avgInc = floor(avgInc)) %>%
+  distinct() %>%
+  arrange(ageRange)
+df1 = data.frame(pos = c(20, 33, 48, 60, 75), 
+                avgInc = ageHrs.inc$avgInc/(ageHrs.inc$avgInc/c(10,20,30,20,14))) 
+  
+ggplot(aes(x = age, y = avgHrs), data = ageHrs) +
+  theme_bw() +
+  geom_point() + 
+  geom_line() +
+  geom_smooth() +
+  geom_vline(xintercept = c(25, 40, 55, 65), linetype = 2, lwd = 1) +
+  geom_text(data = df1, aes(x = pos, y = avgInc, 
+                label = c("age 17-25 \n avg Income:\n 10,685", 
+                          "age 25-40 \n avg Income:\n 41,194",
+                          "age 40-55 \n avg Income:\n 48,972",
+                          "age 55-65 \n avg Income:\n 50,051",
+                          "age 65+ \n avg Income:\n 39237"))) +
+  ggtitle("Average Weekly Hours Worked by Age",
+          subtitle = "Average income for select age ranges also shown; 
+          Low number of respondents older than 75 may skew averages")
 ```
 
 
 <br/>
 
 #### 3. Plot properties
-
+<!--
 What two plot types have you selected? What are some of the properties of these plots, and how do those properties match with your variables of interest?
+--->
 
-<!-- Write up here -->
-
+We have selected a scatterplot for the plot of income vs age, augmented with markings for income quantiles of interest. 
 
 <br/>
 
