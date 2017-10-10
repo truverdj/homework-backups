@@ -92,8 +92,13 @@ Here, we see would could be a log-like relationship between 'Expend' and 'Apps' 
 ```{r Model1st}
 College.train = College.train %>%
   mutate(Elite = recode(Elite, "Yes" = 1, "No" = 0)) %>%
-  mutate(Private = recode(Private, "Yes" = 1, "No" = 0))
-apps.lm2 = lm(data = College.train, Apps ~ . - college)
+  mutate(Private = recode(Private, "Yes" = 1, "No" = 0)) %>%
+  select(-college)
+College.test = College.test %>%
+  mutate(Elite = recode(Elite, "Yes" = 1, "No" = 0)) %>%
+  mutate(Private = recode(Private, "Yes" = 1, "No" = 0)) %>%
+  select(-college)
+apps.lm2 = lm(data = College.train, Apps ~ .)
 summary(apps.lm2)
 ```
 
@@ -145,13 +150,13 @@ The first things first, we're going to do is remove 'Books' and 'PhD' as predict
 We will log transform 'Expend' since it has a wide range (3365 to 56233), and our original scatterplot showed a possible log-like pattern with 'Apps.' Likewise, as we mentioned before, we will try a log trnasform on 'P.Undergrad.' Following the intuitive rule that we should explore interaction for large magnitude coefficients, we will explore the interaction of 'Private' with 'Elite' and 'Grad.Rate' with 'Elite.'
 
 ```{r model2nd}
-apps.lm4 = lm(data = College.train,
+apps.try.lm4 = lm(data = College.train,
               Apps ~ Private + Top10perc + Top25perc + F.Undergrad + log(P.Undergrad) +
                 Room.Board + Outstate + Terminal + S.F.Ratio + perc.alumni + log(Expend) +
                 Grad.Rate + Elite + Private*Elite + Grad.Rate*Elite)
 {
   par(mfrow = c(2,2))
-  plot(apps.lm4)
+  plot(apps.try.lm4)
 }
 ```
 
@@ -182,7 +187,7 @@ sim.apps.lm4 = sim(apps.lm4, nsim)
 rmseList2 = rep(NA, nsim)
 rmseTrain2 = rmse(College.train$Apps, (apps.lm4$fitted.values)^3)
 for (i in 1:nsim){
-  ypred_i = (appsModel %*% sim.apps.lm2@coef[i,])^3
+  ypred_i = (appsModel2 %*% sim.apps.lm4@coef[i,])^3
   rmseList2[i] = rmse(College.train$Apps, ypred_i)
 }
 ggplot(data = data.frame(rmseList2), aes(x = rmseList2)) +
@@ -198,10 +203,96 @@ That actually looks much more acceptable than the original model. While we canno
 where now RMSE = $\sqrt{\sum_{i = 1}^{n.test}(y_i - \hat{y}_i)^2/n.test}$ where the sum is over the test data.  Which model is better for the out of sample prediction?
 --->
 
+```{r}
+College.test.pred = College.test
+pred1 = predict(apps.lm2, newdata = College.test.pred, type = "response")
+pred1.resid.df = data.frame(predictions = pred1, residuals = College.test$Apps - pred1) 
+ggplot(data = pred1.resid.df, aes(x = predictions, y = residuals)) +
+  theme_bw() + 
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dotted")
+```
+
+Oh boy, non-linearity and non-constant variance.
+
+```{r prediction2}
+pred2 = predict(apps.lm4, newdata = College.test.pred, type = "response")
+pred2.resid.df = data.frame(predictions = pred2^3, residuals = College.test$Apps - pred2^3) 
+ggplot(data = pred2.resid.df, aes(x = predictions, y = residuals)) +
+  theme_bw() + 
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dotted")
+```
+
+The non-constant variance is still around, we still have so non-linearity on the right and that non-constant variance. 
+
+<!--
 7.  As the number of applications is a count variable, a Poisson regression model is a natural alternative for modelling this data.   Build a Poisson model using  main effects and possible interactions/transformations.    Comment on the model adequacy based on diagnostic plots and other summaries. Is there evidence that there is lack of fit?
+--->
 
+```{r poissonModel1}
+apps.try.glm7 = glm(data = College.train, Apps ~ ., family = poisson(link = "log"))
+summary(apps.try.glm7)
+{
+  par(mfrow = c(2,2))
+  plot(apps.try.glm7)
+}
+```
 
-8.  Generate 1000 replicate data sets using the coefficients from the Poisson model you fit above.  Using RMSE as a statistic, $\sqrt{\sum_i(y^{\text{rep}} - \hat{y}_i^{\text{rep}})^2/n }$, how does the RMSE from the model based on the training data compare to RMSE's based on the replicated data.  What does this suggest about model adequacy?   Provide a histogram of the RMSE's with a line showing the location of the observed RMSE and compute a p-value.  
+Well, the residuals look much better, but the Cook's distance is now going to space. Additionally, we have a residual deviacne of 386292 on 565 degrees of freedom. Let's try that a bit differently.
+
+```{r}
+apps.try.glm7 = glm(data = College.train,
+                    Apps ~ Private + Top10perc + Top25perc + F.Undergrad + log(P.Undergrad) +
+                  Room.Board + Outstate + Terminal + S.F.Ratio + perc.alumni + log(Expend) +
+                  Grad.Rate + Elite + Private*Elite + Grad.Rate*Elite, 
+                  family = poisson(link = "log"))
+summary(apps.try.glm7)
+{
+  par(mfrow = c(2,2))
+  plot(apps.try.glm7)
+}
+```
+
+Well, the residual deviance has come down to 377990 on 566 degrees of freedom. So far, both models have shown significant signs of overdispersion. We'll try one more thing, mostly to address our leverage problems, log transfomations on 'F.Undergrad' and 'Outstate.' We also finally remove 'perc.alumni' from the model. 
+
+```{r}
+apps.glm7 = glm(data = College.train,
+                    Apps ~ Private + Top10perc + Top25perc + log(F.Undergrad) + log(P.Undergrad) +
+                  Room.Board + log(Outstate) + Terminal + S.F.Ratio + log(Expend) +
+                  Grad.Rate + Elite + Private*Elite + Grad.Rate*Elite, 
+                  family = poisson(link = "log"))
+summary(apps.glm7)
+{
+  par(mfrow = c(2,2))
+  plot(apps.glm7)
+}
+```
+
+Our residual deviance has come down again, but only to 173511 on 567 degrees of freedom. However, even with this compensation, the residuals still grow too large to control the Cook's distance. We can now clearly see a pattern of increasing variance in the residuals with less non-linearity, so we move forward with this model. We'll keep an eye on points '76,' '370,' and '279' as we move forward. All together, we have an overdispersion probelm with even this last model possessing an estimate of overdispersion at 306.02
+
+<!--
+8.  Generate 1000 replicate data sets using the coefficients from the Poisson model you fit above.  Using RMSE as a statistic, $\sqrt{\sum_i(y^{\text{rep}} - \hat{y}_i^{\text{rep}})^2/n }$, how does the RMSE from the model based on the training data compare to RMSE's based on the replicated data.  What does this suggest about model adequacy?   Provide a histogram of the RMSE's with a line showing the location of the observed RMSE and compute a p-value.
+--->
+
+```{r}
+set.seed(1)
+nsim = 1000
+appsModel7 = model.matrix(apps.glm7)
+sim.apps.glm7 = sim(apps.glm7, nsim)
+rmseList7 = rep(NA, nsim)
+rmseTrain7 = rmse(College.train$Apps, apps.glm7$fitted.values)
+for (i in 1:nsim){
+  ypred_i = exp((appsModel7 %*% sim.apps.glm7@coef[i,]))
+  rmseList7[i] = rmse(College.train$Apps, ypred_i)
+}
+ggplot(data = data.frame(rmseList7), aes(x = rmseList7)) +
+  geom_histogram(color = "gray50", fill = "gray75") + 
+  geom_vline(xintercept = rmseTrain7, color = "red") +
+  theme_bw()
+```
+
+That is not as awful as I expected it to be. It is not a conclusive sign of adequacy, but it does capture some features of the data, notably the RMSE statistic. 
 
 9.  Using the test data set, calculate the RMSE for the test data using the predictions from the Poisson model.  How does this compare to the RMSE based on the observed data?  Is this model better than the linear regression models in terms of out of sample prediction?
 
