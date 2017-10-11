@@ -380,17 +380,26 @@ coverage = function(intervals, data){ # intervals should be a predict object wit
   percCoverage = mean(is.in.interval)
   return(percCoverage)
 }
+# idea to do this "bootstrap" method
+# https://stackoverflow.com/questions/14423325/confidence-intervals-for-predictions-from-logistic-regression
 glmCoverage = function(model, newdata, nsim){ # hold onto your butts; it's about to get empirical 
-  for (i in 1:nsim){
-    set.seed(i)
-    class(model) = "glm"
-    modelMatrix = model.matrix(model)
-    simMatrix = sim(model, nsim)
-    for (j in 1:nsim){
-      y_pred = modelMatrix %*% simMatrix@coef[j,]
-      
-    }
+  tempMatrix = matrix(NA, ncol = nsim, nrow = dim(newdata)[1])
+  set.seed(1)
+  class(model) = "glm"
+  modelMatrix = model.matrix(model, data = newdata)
+  simMatrix = sim(model, nsim)
+  for (j in 1:nsim){
+    y_pred = modelMatrix %*% simMatrix@coef[j,]
+    tempMatrix[,j] = y_pred
   }
+  intervalMatrix = matrix(NA, ncol = 2, nrow = nsim)
+  for (i in 1:nsim){
+    lwr = min(tempMatrix[i,])
+    upr = max(tempMatrix[i,])
+    intervalMatrix[i, 1] = lwr
+    intervalMatrix[i, 2] = upr
+  }
+  
 }
 normal1.pred = predict(apps.lm2, newdata = College.test, interval = "predict")
 normal1.coverage = coverage(normal1.pred, College.test$Apps)
