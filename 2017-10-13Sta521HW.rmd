@@ -447,31 +447,67 @@ df = data.frame(Normal.Coverage_1 = normal1.coverage,
 kable(df)
 ```
 
- Well, the poisson turns out to actaully have the worst coverage. We would expect this from our previous analysis of its overdispersion. The normal models hold up surprisingly well given their poor performance with previous diagnostics. The negative binomial has the best coverage here and appears the best of the models that we have created. 
+ Well, the poisson turns out to actaully have the worst coverage. We would expect this from our previous analysis of its overdispersion. The normal models hold up surprisingly well given their poor performance with previous diagnostics. The negative binomial has the best coverage here and appears the best of the models that we have created.  
+
+```{r, echo=F}
+fit = predict(apps.lm2, newdata = College.test, type = "response")
+df = data.frame(obs = College.test$Apps,
+                normal1.pred)
+df = df %>%
+  arrange(lwr)
+df = data.frame(collegeNum = 1:length(College.test$Apps), df)
+ggplot(data = df, aes(x = collegeNum)) +
+  theme_bw() +
+  geom_point(aes(x = collegeNum, y = fit), pch = 3) + 
+  geom_errorbar(aes(ymin = lwr, ymax = upr)) +
+  geom_point(aes(x = collegeNum, y = obs), pch = 4) +
+  ggtitle("1st Normal Prediction Intervals")
+```
+
+```{r, echo=F}
+fit = predict(apps.lm4, newdata = College.test, type = "response")
+df = data.frame(obs = College.test$Apps,
+                (normal2.pred)^3)
+df = df %>%
+  arrange(lwr)
+df = data.frame(collegeNum = 1:length(College.test$Apps), df)
+ggplot(data = df, aes(x = collegeNum)) +
+  theme_bw() +
+  geom_point(aes(x = collegeNum, y = fit), pch = 3) + 
+  geom_errorbar(aes(ymin = lwr, ymax = upr)) +
+  geom_point(aes(x = collegeNum, y = obs), pch = 4) +
+  ggtitle("2nd Normal Prediction Intervals")
+```
  
-```{r}
+```{r, echo=F}
 fit = predict(apps.glm7, newdata = College.test, type = "response")
-df = data.frame(collegeNum = 1:length(College.test$Apps),
-                fit = fit,
+df = data.frame(fit = fit,
                 obs = College.test$Apps,
                 poisson.coverage.df)
+df = df %>%
+  arrange(int.1)
+df = data.frame(collegeNum = 1:length(College.test$Apps), df)
 ggplot(data = df, aes(x = collegeNum)) +
   theme_bw() +
   geom_point(aes(x = collegeNum, y = fit), pch = 3) + 
   geom_errorbar(aes(ymin = int.1, ymax = int.2)) +
-  geom_point(aes(x = collegeNum, y = obs), pch = 4)
+  geom_point(aes(x = collegeNum, y = obs), pch = 4) +
+  ggtitle("Poisson Prediction Intervals")
 ```
 
-```{r}
+```{r, echo=F}
 fit = predict(apps.glm.nb, newdata = College.test, type = "response")
-df = data.frame(collegeNum = 1:length(College.test$Apps),
-                fit = fit,
+df = data.frame(fit = fit,
                 obs = College.test$Apps,
-                poisson.coverage.df)
+                neg.bin.coverage.df)
+df = df %>%
+  arrange(int.1)
+df = data.frame(collegeNum = 1:length(College.test$Apps), df)
 ggplot(data = df, aes(x = collegeNum)) +
   theme_bw() +
   geom_errorbar(aes(ymin = int.1, ymax = int.2)) +
-  geom_point(aes(x = collegeNum, y = obs), pch = 4)
+  geom_point(aes(x = collegeNum, y = obs), pch = 4) +
+  ggtitle("Negative Binomial Prediction Intervals")
 ```
 
 <!--
