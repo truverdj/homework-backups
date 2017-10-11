@@ -382,7 +382,7 @@ coverage = function(intervals, data){ # intervals should be a predict object wit
 }
 # idea to do this "bootstrap" method
 # https://stackoverflow.com/questions/14423325/confidence-intervals-for-predictions-from-logistic-regression
-glmCoverage = function(model, newdata, nsim){ # hold onto your butts; it's about to get empirical 
+glmCoverage = function(model, newdata, nsim, newResponse){ # hold onto your butts; it's about to get empirical 
   tempMatrix = matrix(NA, ncol = nsim, nrow = dim(newdata)[1])
   set.seed(1)
   class(model) = "glm"
@@ -392,21 +392,23 @@ glmCoverage = function(model, newdata, nsim){ # hold onto your butts; it's about
     y_pred = modelMatrix %*% simMatrix@coef[j,]
     tempMatrix[,j] = y_pred
   }
-  intervalMatrix = matrix(NA, ncol = 2, nrow = nsim)
+  intervalMatrix = matrix(NA, ncol = 2, nrow = dim(newdata)[1])
   for (i in 1:nsim){
     lwr = min(tempMatrix[i,])
     upr = max(tempMatrix[i,])
     intervalMatrix[i, 1] = lwr
     intervalMatrix[i, 2] = upr
   }
-  
+  is.in.interval = (intervalMatrix[,1] < newResponse & newResponse < intervalMatrix[,2])
+  percCoverage = mean(is.in.interval)
+  return(percCoverage)
 }
 normal1.pred = predict(apps.lm2, newdata = College.test, interval = "predict")
 normal1.coverage = coverage(normal1.pred, College.test$Apps)
 normal2.pred = predict(apps.lm4, newdata = College.test, interval = "predict")
 normal2.coverage = coverage(normal2.pred, College.test$Apps)
 # https://stackoverflow.com/questions/14423325/confidence-intervals-for-predictions-from-logistic-regression
-poisson.pred = predict(apps.glm7, newdata = College.test, type = "response" )
+poisson.coverage = glmCoverage()
 ```
 
 13.  Provide a table  with 
