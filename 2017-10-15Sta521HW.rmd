@@ -65,23 +65,20 @@ College.test = College[-train,]
 Comment on any features in the plots, such as potential outliers, non-linearity, needs for transformations etc.
 --->
 ```{r scatterplots1}
-pairs( College.train %>% 
-        select(Apps, Top10perc, Top25perc, F.Undergrad, P.Undergrad))
+ggpairs( College.train %>% select(Top10perc, Top25perc, F.Undergrad, P.Undergrad, Apps))
 ```
 
 Were we to perform a simple regression of apps with any of the above variables, it appears we may be dealing with non-constant variance, but no obvious non-linear patter with 'Top10perc,' 'Top25Perc,' or 'F.Undergrad.' We may want to do a long transform on 'P.Undergrad.' This transformation will also help with the potential outlier school that has a massive (> 20,000) part-time undergraduate population.  
 
 
 ```{r scatterplots2}
-pairs( College.train %>% 
-        select(Apps, Outstate, Room.Board, Personal, PhD))
+ggpairs( College.train %>% select(Outstate, Room.Board, Personal, PhD, Apps))
 ```
 
 The relationship between 'PhD' and 'Apps' appears exponential. The variables 'Outstate,' 'Room.Board,' and 'Peronsal' do not show very distinct patterns, linear or otherwise, in relation to 'Apps.'
 
 ```{r scatterplots3}
-pairs( College.train %>% 
-        select(Apps, S.F.Ratio, Expend, Grad.Rate, Elite))
+ggpairs( College.train %>% select(S.F.Ratio, Expend, Grad.Rate, Elite, Apps))
 ```
 
 Here, we see would could be a log-like relationship between 'Expend' and 'Apps' as well as what appears to be a linear without constant variance relationship between 'Grad.Rate' and 'Apps.' 'S.F.Ratio' and 'Elite' do not present any obvious relationships with 'Apps.'  
