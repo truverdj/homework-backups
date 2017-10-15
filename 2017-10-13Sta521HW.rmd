@@ -129,13 +129,16 @@ rmseList = rep(NA, nsim)
 rmseTrain = rmse(College.train$Apps, apps.lm2$fitted.values)
 for (i in 1:nsim){
   ypred_i = appsModel %*% sim.apps.lm2@coef[i,]
-  rmseList[i] = rmse(College.train$Apps, ypred_i)
+  y.rep = rnorm(length(ypred_i), ypred_i, sim.apps.lm2@sigma[i])
+  sim.lm = lm(data = data.frame(y.rep, appsModel[,-1]), y.rep ~.)
+  rmseList[i] = rmse(y.rep, sim.lm$fitted.values)
 }
+p.value1 = mean(rmseList > rmseTrain)
 ggplot(data = data.frame(rmseList), aes(x = rmseList)) +
   geom_histogram(color = "gray50", fill = "gray75") + 
   geom_vline(xintercept = rmseTrain, color = "red") +
   geom_text(aes(x = rmseTrain, y = 50, 
-                label = "model RMSE \n highly unlikely \n p-value near 0 \n model inadequate"),
+                label = "model RMSE \n p-value = 0.471"),
             hjust = 0.2) +
   theme_bw()
 ```
@@ -179,7 +182,7 @@ Trying a few of our favorite power transforms on the response, specifically $\la
 5.  Repeat the predictive checks described in problem 3, but using your model from problem 4.  If you transform the response, you will need to back transform  data to the original units in order to compute the RMSE in the original units.  Does this suggest that the model is adequate?  Do the two graphs provide information about which model is better?
 --->
 
-```{r predictiveChecks2}
+```{r predictiveChecks2, cache=T}
 set.seed(1)
 nsim = 1000
 appsModel2 = model.matrix(apps.lm4)
@@ -188,7 +191,9 @@ rmseList2 = rep(NA, nsim)
 rmseTrain2 = rmse(College.train$Apps, (apps.lm4$fitted.values)^3)
 for (i in 1:nsim){
   ypred_i = (appsModel2 %*% sim.apps.lm4@coef[i,])^3
-  rmseList2[i] = rmse(College.train$Apps, ypred_i)
+  y.rep = rnorm(length(ypred_i), ypred_i, sim.apps.lm4@sigma[i])
+  sim.lm = lm(data = data.frame(y.rep, appsModel2[,-1]), y.rep ~.)
+  rmseList2[i] = rmse(y.rep, sim.lm$fitted.values)
 }
 ggplot(data = data.frame(rmseList2), aes(x = rmseList2)) +
   geom_histogram(color = "gray50", fill = "gray75") + 
@@ -196,7 +201,7 @@ ggplot(data = data.frame(rmseList2), aes(x = rmseList2)) +
   theme_bw()
 ```
 
-That actually looks much more acceptable than the original model. While we cannot say this this second model is adequate, we can say it looks much better than the original. 
+That actually looks much worse than the original. The p-value here is 0.   
 
 <!---
 6. Use your two fitted models to predict the number of applications for the testing data, `College.test`.  Plot the predicted residuals $y_i - \hat{y}_i$  versus the predictions.  Are there any cases where the model does a poor job of predicting?  Compute the RMSE using the test data
@@ -288,7 +293,7 @@ Our residual deviance has come down again, but only to 173511 on 567 degrees of 
 8.  Generate 1000 replicate data sets using the coefficients from the Poisson model you fit above.  Using RMSE as a statistic, $\sqrt{\sum_i(y^{\text{rep}} - \hat{y}_i^{\text{rep}})^2/n }$, how does the RMSE from the model based on the training data compare to RMSE's based on the replicated data.  What does this suggest about model adequacy?   Provide a histogram of the RMSE's with a line showing the location of the observed RMSE and compute a p-value.
 --->
 
-```{r}
+```{r, cache=T}
 set.seed(1)
 nsim = 1000
 appsModel7 = model.matrix(apps.glm7)
@@ -297,7 +302,9 @@ rmseList7 = rep(NA, nsim)
 rmseTrain7 = rmse(College.train$Apps, apps.glm7$fitted.values)
 for (i in 1:nsim){
   ypred_i = exp((appsModel7 %*% sim.apps.glm7@coef[i,]))
-  rmseList7[i] = rmse(College.train$Apps, ypred_i)
+  y.rep = rpois(length(ypred_i), ypred_i)
+  sim.lm = glm(data = data.frame(y.rep, appsModel[,-1]), y.rep ~., family = poisson(link = "log"))
+  rmseList7[i] = rmse(y.rep, sim.lm$fitted.values)
 }
 ggplot(data = data.frame(rmseList7), aes(x = rmseList7)) +
   geom_histogram(color = "gray50", fill = "gray75") + 
@@ -305,7 +312,7 @@ ggplot(data = data.frame(rmseList7), aes(x = rmseList7)) +
   theme_bw()
 ```
 
-That is not as awful as I expected it to be. It is not a conclusive sign of adequacy, but it does capture some features of the data, notably the RMSE statistic. 
+The p-value here is 1.
 
 <!--
 9.  Using the test data set, calculate the RMSE for the test data using the predictions from the Poisson model.  How does this compare to the RMSE based on the observed data?  Is this model better than the linear regression models in terms of out of sample prediction?
@@ -343,7 +350,7 @@ The diagnostics and residual deviance (596.48 on 567 degrees of freedom) do look
 11. Carry out the predictive checks for the negative binomial model model using simulated replicates with RMSE and add RMSE from the test data and observed data to your plot.  What do these suggest about 1) model adequacy and 2) model comparison?  Which model out of all that you have fit do you recommend?  
 --->
 
-```{r}
+```{r, cache = T}
 set.seed(1)
 nsim = 1000
 appsModel.nb = model.matrix(apps.glm.nb)
@@ -351,9 +358,12 @@ class(apps.glm.nb) = "glm"
 sim.apps.glm.nb = sim(apps.glm.nb, nsim)
 rmseList.nb = rep(NA, nsim)
 rmseTrain.nb = rmse(College.train$Apps, apps.glm.nb$fitted.values)
+sim.apps.glm.nb@sigma = rnorm(nsim, apps.glm.nb$theta, apps.glm.nb$SE.theta)
 for (i in 1:nsim){
   ypred_i = exp(appsModel.nb %*% sim.apps.glm.nb@coef[i,])
-  rmseList.nb[i] = rmse(College.train$Apps, ypred_i)
+  y.rep = rnegbin(length(ypred_i), mu = ypred_i, theta = sim.apps.glm.nb@sigma[i])
+  sim.lm = glm.nb(data = data.frame(y.rep, appsModel[,-1]), y.rep ~.)
+  rmseList.nb[i] = rmse(y.rep, sim.lm$fitted.values)
 }
 pred.nb = predict(apps.glm.nb, newdata = College.test, type = "response")
 rmseTest.nb = rmse(College.test$Apps, pred.nb)
@@ -364,12 +374,11 @@ ggplot(data = data.frame(rmseList.nb), aes(x = rmseList.nb)) +
   geom_text(aes(x = rmseTrain.nb, y = 100,
                 label = "Training\n RMSE")) +
   geom_text(aes(x = rmseTest.nb, y = 100, 
-                label = "Out of Sample\nRMSE")) +
+                label = "Test\nRMSE")) +
   theme_bw()
 ```
 
-
-Well, that comparison to the out of sample (test) RMSE is very dissapointing. The model seems to fit the observed data well but does not do was well with new data not used in the construction of the model. This last model, the negative binomial, does seem the best by all other diagnostics and the disparity between training RMSE and test RMSE is smaller than the other models we have constructed. We note that the RMSE values for all of these models are very poor, even considering the scale of the variable we are trying to predict, Apps, which has a range of 81 to 20192 and 75% of its values between 512 and 6642.  
+Our p-value is, once again, equal to 1. 
 
 <!--
 12.  While RMSE is a popular summary for model goodness of fit, coverage of confidence intervals is an alternative. For each case in the test set, find a 95% prediction interval.  Now evaluate if the response is in the test data are inside or outside of the intervals.   If we have the correct coverage, we would expect that at least 95\% of the intervals would contain the test cases. Write a function to calculate coverage (the input should be the fitted model object and the test data-frame) and then evaluate coverage for each of the  models that you fit  (the two normal, the  Poisson and the negative binomial).  Include plots of the confidence intervals versus case number ordered by the prediction, with the left out data added as points.  Comment on the plots, highlighting any unusual colleges where the model predicts poorly.
@@ -440,11 +449,12 @@ neg.bin.coverage.df = glmCoverage(model = apps.glm.nb, modelMatrix = modelMatrix
                                is.simple = F, is.pois = F)
 neg.bin.coverage = neg.bin.coverage.df[1,1]
 neg.bin.coverage.df = neg.bin.coverage.df[,-1]
-df = data.frame(Normal.Coverage_1 = normal1.coverage,
+coverage.df = data.frame(Normal.Coverage_1 = normal1.coverage,
                 Normal.Coverage_2 = normal2.coverage,
                 Poisson.Coverage = poisson.coverage,
                 Negative.Binomial.Coverage = neg.bin.coverage)
-kable(df)
+coverage.c = c(normal1.coverage, normal2.coverage, poisson.coverage, neg.bin.coverage)
+kable(coverage.df)
 ```
 
  Well, the poisson turns out to actaully have the worst coverage. We would expect this from our previous analysis of its overdispersion. The normal models hold up surprisingly well given their poor performance with previous diagnostics. The negative binomial has the best coverage here and appears the best of the models that we have created.  
@@ -485,7 +495,7 @@ df = data.frame(fit = fit,
                 obs = College.test$Apps,
                 poisson.coverage.df)
 df = df %>%
-  arrange(int.1)
+  arrange(int.2)
 df = data.frame(collegeNum = 1:length(College.test$Apps), df)
 ggplot(data = df, aes(x = collegeNum)) +
   theme_bw() +
@@ -501,7 +511,7 @@ df = data.frame(fit = fit,
                 obs = College.test$Apps,
                 neg.bin.coverage.df)
 df = df %>%
-  arrange(int.1)
+  arrange(int.2)
 df = data.frame(collegeNum = 1:length(College.test$Apps), df)
 ggplot(data = df, aes(x = collegeNum)) +
   theme_bw() +
@@ -515,12 +525,41 @@ ggplot(data = df, aes(x = collegeNum)) +
 the 1) RMSE's on the observed data, 2) RMSE's on the test data, 3) coverage, 4) the predictive check p-value with one row for each of the  models and comment the results.  Which model do you think is best and why?  Consider the job of an administrator who wants to ensure that there are enough staff to handle reviewing applications.  Explain why coverage might be useful.
 --->
 
+```{r}
+modelList = list(apps.lm2, apps.lm4, apps.glm7, apps.glm.nb)
+rmseTest.list = rep(NA, 4)
+for (i in 1:4){
+  ypred = predict(modelList[[i]], newdata = College.test, type = "response")
+  rmseTest.list[i] = rmse(College.test$Apps, ypred)
+}
+table.df = data.frame(rmseObs = c(rmseTrain, rmseTrain2, rmseTrain.nb, rmseTrain.nb),
+                      rmseTest = rmseTest.list,
+                      coverage = c(normal1.coverage, normal2.coverage, poisson.coverage, neg.bin.coverage),
+                      p.values = c(p.value1, 0, 1, 1),
+                      row.names = c("Model1", "Model2", "Model3", "Model4"))
+kable(table.df)
+```
+
+<!--
 14.  For your "best" model  provide a nicely formatted table (use `kable()` or `xtable()`) of relative risks and 95% confidence intervals.  Pick 5 of the most important variables and provide a paragraph that provides an interpretation of the parameters (and intervals) that can be provided to a university admissions officer about which variables increase admissions.  
+--->
+
+```{r}
+RR = exp(coef(apps.glm.nb))
+lwrConf = exp(coef(apps.glm.nb) - 1.96 * coef(summary(apps.glm.nb))[, "Std. Error"])
+uprConf = exp(coef(apps.glm.nb) + 1.96 * coef(summary(apps.glm.nb))[, "Std. Error"])
+risk.df = data.frame(RR, lwrConf, uprConf)
+colnames(risk.df) = c("RR", "2.5%", "97.5%")
+kable(risk.df)
+```
+
+We have found that one of the most important variables to be the undergraduate student body size. This leads to the somewhat trivial result that if the school wants to increase admissions they should admit more people. Groundbreaking stuff here. On the other hand, elite institutions seem to face lower numbers of applications; lower the standards. Or maybe it is an attitude problem. Our model also shows that increasing instructional expenditure will lead to more applications. Perhaps students like to know that they will receive quality instruction in the classroom. We will advise the admissions office of this grand revelation. Raising out of state tuition also leads to more applications by our model. No need to inform the admissions department of this one, seems they have been employing this technique for years. Finally, we note that being both a private and an elite institution has a negative effect on applications, but this seems to be mostly due to the elite aspect, not the private status.
 
 ### Some Theory   
 
 
 15. Gamma mixtures of Poissons:  From class we said that
+\[
 \begin{align}
 Y \mid \lambda & \sim P(\lambda) \\
 p(y \mid \lambda) & = \frac{\lambda^y e^{-\lambda}} {y!} \\
@@ -534,6 +573,7 @@ p(Y \mid \mu, \theta) & = \int p(Y \mid \lambda) p(\lambda \mid \theta, \theta/\
 \left(\frac{\mu}{\theta + \mu}\right)^{y} \\
 Y \mid \mu, \theta & \sim NB(\mu, \theta) 
 \end{align}
+\]
 Derive the density of $Y \mid \mu, \theta$ in (8) showing your work using LaTeX expressions.  (Note this may not display if the output format is html, so please use pdf.)
 Using iterated expectations with the Gamma-Poisson mixture, find the mean and variance of $Y$, showing your work.
 
