@@ -283,11 +283,38 @@ kable(Q8.df)
 
 9.   Use BIC with either stepwise or all possible subsets to select a model and then use OLS to estimate the parameters under that model.  Use the estimates to compute the RMSE for (a) estimating $\beta^{true}$, (b) $\mu_{true}$ for the test data, and (c) predicting $Y_{test}$.   For prediction, does this find the best model in terms of RMSE? Does BIC find the true model?  Comment on your findings.
 
+```{r Q9}
+bayes_step = step(lm(data = data.train, Y~.-mu), k = log(n_train),
+                  direction = "backward")
+bayes_vars = as.character(formula(bayes_step))
+temp1_bayes = str_replace_all(bayes_vars, "Y|~|\\s", "")
+temp2_bayes = str_split(temp1_bayes, "\\+")
+bayes_vars = c(1, as.numeric(head(str_replace_all(temp2_bayes[[1]], "V|X", ""),-1)) + 1, 21)
+bayes.is.true = sum(which(truemodel) %in% bayes_vars)
+cat("The backwards selection model includes", bayes.is.true, "predictors",
+    "\n from the true model and", length(bayes_vars) - bayes.is.true, "spurious predictors.")
+beta_bayes = rep(0, 21)
+beta_bayes[bayes_vars] = coef(bayes_step)
+beta_RMSE_bayes = rmse(betatrue, beta_bayes)
+mu_bayes = X_test %*% beta_bayes
+mu_RMSE_bayes = rmse(mu_true, mu_bayes)
+y_bayes = predict(bayes_step, newdata = data.test)
+y_RMSE_bayes = rmse(y_test, y_bayes)
+Q9.df = rbind(Q7.df, c(beta_RMSE_bayes, mu_RMSE_bayes, y_RMSE_bayes))
+colnames(Q9.df) = c("RMSE for Beta", "RMSE for mu", "RMSE for Y")
+rownames(Q9.df) = c("Backward AIC", "Forward AIC", "Both AIC", "BIC model")
+kable(Q9.df, caption = "RMSE Values, Model Selected by BIC Added")
+cat("The BIC selected model performs best with the mu RMSE metric.",
+    "\n The BIC also outperforms the backward selection AIC in terms",
+    "\n of Y prediction RMSE and outperforms forward selection AIC in",
+    "\n in terms of Beta RMSE.")
+```
+
+10.  Take a look at the summaries from the estimates under the best BIC model fit to the training data. Create confidence intervals for the $\beta$'s and comment on whether they include zero or not or the true value.
+
 ```{r}
 
 ```
-
-10.  Take a look at the summaries from the estimates under the best AIC model fit to the training data. Create confidence intervals for the $\beta$'s and comment on whether they include zero or not or the true value.
 
 11. Provide a paragraph  summarizing your findings and any recommendations for model selection and inference for the tasks of prediction of future data, estimation of parameters or selecting the true model.
 
