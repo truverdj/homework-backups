@@ -1,0 +1,301 @@
+---
+title: 'HW5: Team 06'
+author: 'Daniel Truver'
+date: " 2017-10-23 "
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+
+```{r setup, warning=FALSE, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+suppressMessages(library(ggplot2))
+suppressMessages(library(dplyr))
+suppressMessages(library(GGally))
+suppressMessages(library(leaps))
+# suppressMessages(library(bestglm))
+library(BAS)
+library(knitr)
+# post on piazza for additional packages if there are wercker build errors due to missing packages
+
+```
+
+
+We have seen that as the number of features in a model increases, the training error will necessarily decrease, but the test error may not.  
+For this assignment we will explore this using simulation of data to compare methods for estimation and model selection.
+
+Some "guideposts" for when to finish parts are provided within the problem set.
+
+1.  Generate a dataset with $p = 20$ features and $n=1000$ as follows:
+First let's set our random seed in case we need to rerun parts later.
+
+```{r jenny, echo=TRUE}
+# set the random seed so that we can replicate results.
+set.seed(8675309)
+```
+
+In order to simulate data, we need to specify the values of the  "true" parameters.  For this study we will use
+
+```{r true}
+# true parameters
+sigma = 2.5
+betatrue = c(4,2,0,0,0,-1,0,1.5, 0,0,0,1,0,.5,0,0,0,0,-1,1,4)
+#          int|    X1                            | X2     |X3 
+
+truemodel = betatrue != 0
+```
+
+
+
+Generate Data with correlated columns.
+```{r data, cache=TRUE} 
+
+#sample size
+n = 1000
+
+# generate some standard normals
+  Z = matrix(rnorm(n*10, 0, 1), ncol=10, nrow=n)
+  
+#  Create X1 by taking linear cominations of Z to induce correlation among X1 components
+  
+  X1 = cbind(Z, 
+             (Z[,1:5] %*% c(.3, .5, .7, .9, 1.1) %*% t(rep(1,5)) +
+             matrix(rnorm(n*5, 0, 1), ncol=5, nrow=n))
+             )
+# generate X2 as a standard normal  
+  X2 <- matrix(rnorm(n*4,0,1), ncol=4, nrow=n)
+  
+# Generate X3 as a linear combination of X2 and noise  
+  X3 <- X2[,4]+rnorm(n,0,sd=0.1)
+  
+# combine them  
+  X <- cbind(X1,X2,X3)
+
+# Generate mu     
+# X does not have a column of ones for the intercept so need to add the intercept  
+# for true mu  
+mu = betatrue[1] + X %*% betatrue[-1] 
+  
+# now generate Y  
+Y = mu + rnorm(n,0,sigma)  
+  
+# make a dataframe and save it
+df = data.frame(Y, X, mu)
+```
+
+
+
+
+
+
+2. Split your data set into a training set containing $100$ observations and a test set containing $900$ observations.  Before splitting reset the random seed based on your team number
+```{r}
+set.seed(6)   # replace 0 with team number before runing
+n_train = 100
+n_test = 900
+test_index = sample(1:1000, n_train)
+data.train = df[test_index,]
+data.test = df[-test_index,]
+```
+
+
+
+
+
+3.  Using Ordinary Least squares based on fitting the full model for the training data,  compute the average RMSE for (a) estimating $\beta_{true}$, (b) estimating $\mu_{true} = X_{\text{test}} \beta_{true}$ and (c) out of sample prediction of $Y_{test}$ for the test data.
+Note for a vector of length $d$, RMSE is defined as
+$$
+RMSE(\hat{\theta}) = \sqrt{\sum_{i = 1}^{d} (\hat{\theta}_j - \theta_j)^2/d}
+$$
+Provide Confidence/prediction intervals for $\beta$, and $\mu$, and $Y$ in the test data and report what percent of the intervals contain the true values.  Do any estimates seem surprising?
+
+```{r Q3}
+rmse = function(y, ypred){
+  rmse = sqrt( mean( (y-ypred)^2 ) )
+  return(rmse)
+}
+
+train.lm_3 = lm(data = data.train, Y~.-mu)
+beta_RMSE = rmse(betatrue, coef(train.lm_3))
+X_test = model.matrix(train.lm_3, data = data.test)
+mu_true = X_test %*% betatrue
+mu_pred = X_test %*% coef(train.lm_3)
+mu_RMSE = rmse(mu_true, mu_pred)
+y_pred = predict(train.lm_3, type = "response")
+y_RMSE = rmse(data.test[,"Y"], y_pred)
+beta_confint = confint(train.lm_3)
+mu_confint = predict(train.lm_3, interval = "confidence")
+y_predint = predict(train.lm_3, newdata = data.test, interval = "prediction")
+#percent of estimates that contain the true value
+beta_perc = mean( beta_confint[,1] < betatrue & betatrue < beta_confint[,2] )
+mu_perc = mean( mu_confint[,"lwr"] < mu_true & mu_true < mu_confint[,"upr"] )
+y_perc = mean(y_predint[,"lwr"] < data.test[,"Y"] & data.test[,"Y"] < y_predint[,"upr"])
+kable(data.frame("RMSE(Beta)" = beta_RMSE, "RMSE(mu)" = mu_RMSE, "RMSE(Y)" = y_RMSE))
+kable(beta_confint, caption = "Confidence Intervals for Beta")
+kable(head(mu_confint, 10), caption = "Head of Confidence Intervals for mu")
+kable(head(y_predint, 10), caption = "Head of Prediction Intervals for Y")
+kable(data.frame("Coverage(Beta)" = beta_perc, "Coverage(mu)" = mu_perc, "Coverage(Y)" = y_perc))
+```
+
+4. Perform best subset selection on the training data, and plot the training set RMSE for fitting associated with the best model of each size.
+
+```{r Q4, message=FALSE}
+X_train = model.matrix(train.lm_3)
+y_train = data.train[,"Y"]
+y_test = data.test[,"Y"]
+best.set_3 = regsubsets(Y~.-mu, data = data.train, nvmax = 20)
+best.sum_3 = summary(best.set_3)
+subset_RMSE = sqrt( best.sum_3$rss/n_train )
+plot(1:20, subset_RMSE, type = "b", 
+     main = "Best Subset RMSE for Predictor Subsets of Each Size",
+     xlab = "Number of Predictors", ylab = "Best Subset RMSE")
+```
+
+5. Plot the test set RMSE for prediction associated with the best model of each size.   For which model size does the test set RMSE take on its minimum value?  Comment on your results.  If it takes on its minimum value for a model with only an intercept or a model containing all of the predictors, adjust $\sigma$ used in generating the data until the test set RMSE is minimized for an intermediate point.
+
+```{r Q5}
+suppressMessages(require(formula.tools))
+models = best.sum_3$which
+models.formula = lapply(1:nrow(models), 
+                        function(x)as.formula(paste("Y~", 
+                                                    paste(names(which(models[x,])[-1]), 
+                                                          collapse="+"))))
+
+models.lm = lapply(models.formula, lm, data.train)
+ypred_RMSE = rep(NA, length(models.lm))
+for (i in seq_along(models.lm)){
+  ypred = predict(models.lm[[i]], newdata = data.test, type = "response")
+  ypred_RMSE[i] = rmse(y_test, ypred)
+}
+Q5.df = data.frame(p= 1:20, RMSE = ypred_RMSE)
+ggplot(data = Q5.df, aes(x = p, y = RMSE)) +
+  geom_point() + 
+  geom_line() +
+  geom_point(color = "red", size = 3, data = subset(Q5.df, RMSE == min(RMSE))) +
+  geom_text(data = subset(Q5.df, RMSE == min(RMSE)), 
+            aes(label = paste0("p = ", p)),
+            vjust = 1.25) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+cat(as.character(models.formula[[7]]),
+    "\n was our best model, a subset of size 7.",
+    "\n These coefficients are all non-zero in the true model.")
+```
+
+6.  How does the model at which the test set RMSE is minimized compare to the true model used to generate the data?  Comment on the coefficient values and confidence intervals obtained from using all of the data.  Do the intervals include the true values?
+
+```{r Q6}
+chosen.lm_6 = lm(models.formula[[7]], data = data.train)
+summary(chosen.lm_6)
+our_non0.true = betatrue[c(1,2,6,8,12,14,19,21)]
+beta_comp_coef = data.frame(model = coef(chosen.lm_6), 
+                            true = our_non0.true)
+kable(beta_comp_coef, caption = "Model estimates and True Betas")
+cat("In the true model, we have ", sum(betatrue != 0), "non-zero coefficents.",
+    "\n It appears that our model missed a coefficient of interest.")
+chosen_confint = confint(chosen.lm_6)
+beta.in.confint = chosen_confint[,1] < our_non0.true & our_non0.true < chosen_confint[,2]
+Q6.df = data.frame(chosen_confint, beta.in.confint = factor(beta.in.confint))
+Q6.df = Q6.df %>%
+  mutate(beta.in.confint = 
+           recode(beta.in.confint, 'TRUE' = "Yes", 'FALSE' = "No"))
+colnames(Q6.df) = c("2.5%", "97.5%", "True Beta in Confint")
+kable(Q6.df, caption = "Coefficient Confidence Intervals")
+```
+
+7.  Use AIC with stepwise or all possible subsets to select a model based on the training data and then use OLS to estimate the parameters under that model.  Using the estimates to compute the RMSE for (a) estimating $\beta^{true}$, (b) estimating $\mu_{true}$ in the test data, and (c) predicting $Y_{test}$. For prediction, does this find the best model in terms of RMSE? Does AIC find the true model?  Comment on your findings.
+
+```{r}
+back_step = step(train.lm_3, direction = "backward")
+back_summary = summary(back_step)
+simple_model = lm(data = data.train, Y~1)
+full_model = formula(lm(data = data.train, Y~.-mu))
+forw_step = step(simple_model, direction = "forward", scope = full_model)
+forw_summary = summary(forw_step)
+both_step = step(train.lm_3, direction = "both") 
+both_summary = summary(both_step)
+library(stringr)
+back_vars = as.character(formula(back_step))
+forw_vars = as.character(formula(forw_step))
+both_vars = as.character(formula(both_step))
+temp1_back = str_replace_all(back_vars, "Y|~|\\s", "")
+temp2_back = str_split(temp1_back, "\\+")
+back_vars = c(1, as.numeric(head(str_replace_all(temp2_back[[1]], "V|X", ""),-1)) + 1, 21)
+temp1_forw = str_replace_all(forw_vars, "Y|~|\\s", "")
+temp2_forw = str_split(temp1_forw, "\\+")
+forw_vars = c(1, as.numeric(str_replace_all(temp2_forw[[1]][-1], "V|X", "")) + 1, 21) %>%
+  sort()
+temp1_both = str_replace_all(both_vars, "Y|~|\\s", "")
+temp2_both = str_split(temp1_both, "\\+")
+both_vars = c(1, as.numeric(head(str_replace_all(temp2_both[[1]], "V|X", ""),-1)) + 1, 21)
+beta_back = rep(0, 21)
+beta_back[back_vars] = coef(back_step)
+beta_forw = rep(0, 21)
+beta_forw[forw_vars] = coef(forw_step)
+beta_both = rep(0, 21)
+beta_both[both_vars] = coef(both_step)
+beta_RMSE_back = rmse(betatrue, beta_back)
+beta_RMSE_forw = rmse(betatrue, beta_forw)
+beta_RMSE_both = rmse(betatrue, beta_both)
+mu_back = X_test %*% beta_back
+mu_forw = X_test %*% beta_forw
+mu_both = X_test %*% beta_both
+mu_RMSE_back = rmse(mu_true, mu_back)
+mu_RMSE_forw = rmse(mu_true, mu_forw)
+mu_RMSE_both = rmse(mu_true, mu_both)
+y_pred_back = predict(back_step, newdata = data.test)
+y_pred_forw = predict(forw_step, newdata = data.test)
+y_pred_both = predict(both_step, newdata = data.test)
+y_RMSE_back = rmse(y_test, y_pred_back)
+y_RMSE_forw = rmse(y_test, y_pred_forw)
+y_RMSE_both = rmse(y_test, y_pred_both)
+Q7.df = data.frame(beta_RMSE = c(beta_RMSE_back, beta_RMSE_forw, beta_RMSE_both),
+                   mu_RMSE = c(mu_RMSE_back, mu_RMSE_forw, mu_RMSE_both),
+                   y_RMSE = c(y_RMSE_back, y_RMSE_forw, y_RMSE_both))
+rownames(Q7.df) = c("Backward Selection", "Forward Selection", "Both")
+kable(Q7.df, caption = "RMSE Values for Model Results of Stepwise Selection")
+cat("It appears that backwards selection and the mixed selection technique",
+    "\n have selected the same model. We will now run a brief script to determine",
+    "\n if any of the models are the true model.")
+back.is.true = sum(which(truemodel) %in% back_vars)
+cat("The backwards selection model includes", back.is.true, "predictors",
+    "\n from the true model and", length(back_vars) - back.is.true, "spurious predictors.")
+forw.is.true = sum(which(truemodel) %in% forw_vars)
+cat("The forwwards selection model includes", forw.is.true, "predictors",
+    "\n from the true model and", length(forw_vars) - forw.is.true, "spurious predictors.")
+```
+
+8.  Take a look at the summaries from the estimates under the best AIC model fit to the training data. Create confidence intervals for the $\beta$'s and comment on whether they include zero or not or the true value.
+
+We say that the best model is the backwards selection model based on its AIC value and its RMSE values.
+
+```{r}
+back_confint = confint(back_step)
+is.0.in = back_confint[,1] < 0 & 0 < back_confint[,2]
+is.true.in = (back_confint[,1] < betatrue[back_vars] & 
+                betatrue[back_vars] < back_confint[,2])
+Q8.df = data.frame(back_confint, is.0.in, is.true.in)
+colnames(Q8.df) = c("2.5%", "97.5%", "0 in Interval", "True Beta in Interval")
+kable(Q8.df)
+```
+
+9.   Use BIC with either stepwise or all possible subsets to select a model and then use OLS to estimate the parameters under that model.  Use the estimates to compute the RMSE for (a) estimating $\beta^{true}$, (b) $\mu_{true}$ for the test data, and (c) predicting $Y_{test}$.   For prediction, does this find the best model in terms of RMSE? Does BIC find the true model?  Comment on your findings.
+
+```{r}
+
+```
+
+10.  Take a look at the summaries from the estimates under the best AIC model fit to the training data. Create confidence intervals for the $\beta$'s and comment on whether they include zero or not or the true value.
+
+11. Provide a paragraph  summarizing your findings and any recommendations for model selection and inference for the tasks of prediction of future data, estimation of parameters or selecting the true model.
+
+
+
+
+
+
+
+
+
